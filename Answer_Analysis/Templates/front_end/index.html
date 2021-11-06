@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+{%  load static %}
+  <head>
+    <meta charset="utf-8">
+    <title> Answer Analysis</title>
+    <link rel="stylesheet" href="{% static 'front_end/css/main.css'%}">
+    <!-- chart -->
+    <script src="{% static 'chart/chart.js'%}"></script>
+
+    <!-- bootstrap5 -->
+    <link href="{% static 'bootstrap-5/css/bootstrap.min.css'%}" rel="stylesheet" >
+    <script src="{% static 'bootstrap-5/js/bootstrap.bundle.min.js'%}" ></script>
+
+
+    <!-- forms -->
+    <script src="{% static 'front_end/js/forms.js'%}"></script>
+
+
+
+
+
+  </head>
+  <body>
+        <div class="container my-5 px-4">
+            <div class="container d-flex justify-content-center">
+              <div class="row px-5" id='nav_container'>
+                    <h5 id='results_nav' class="col ">النتايج</h5>
+                    <h5 id='question_nav' class="col">السؤال</h5>
+                    <h5 id='personal_nav' class=" active col">بيانات شخصية</h5>
+              </div>
+            </div>
+
+            <div class="container d-flex justify-content-center" id='form_place'>
+
+            </div>
+            <div class="container d-flex justify-content-center" id='btn_container'>
+              <button id="next" type="button" class="btn btn-primary mx-2 px-4">التالي</button>
+              <button id="prev"type="button" class="btn btn-primary mx-2 ">السابق </button>
+              <button id="reset" type="button" class="btn btn-primary mx-2 " >محاولة أخرى </button>
+            </div>
+        </div>
+  <script type="text/javascript">
+            //csrf
+            function getCookie(name) {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        // Does this cookie string begin with the name we want?
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+            const csrftoken = getCookie('csrftoken');
+
+            //top nav bar
+            var results_nav=document.getElementById('results_nav')
+            var question_nav=document.getElementById('question_nav')
+            var personal_nav=document.getElementById('personal_nav')
+            //form container
+            var form_place=document.getElementById('form_place')
+            form_place.innerHTML=page_1
+
+            // buttons
+            var btn_container=document.getElementById('btn_container')
+            var prev=document.getElementById('prev')
+            var next=document.getElementById('next')
+            var reset=document.getElementById('reset')
+
+            //// QUESTION index
+            var num_questions;
+
+            // page index
+            count=0
+            var responder_id;
+
+            next.addEventListener('click',function(){
+              if (count==0){
+                fetch("{% url 'create_responder'%} ",
+                {
+                  headers: {
+                    "Accept" : "application/json",
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrftoken
+                    },
+                  method: "POST",
+                    body: JSON.stringify({
+                              name: document.getElementById('full_name').value,
+                              phone_number: document.getElementById('phone_number').value,
+                              address:document.getElementById('address').value,
+                              nationality:document.getElementById('country').value,
+                              DOB:document.getElementById('dob').value,
+                              gender:document.getElementsByName('inlineRadioOptions')[0].value                            })
+                })
+                .then(function(res){ return res.json() })
+            .then(function(data) {
+              num_questions=0
+              if(data.answered_questions){
+              num_questions=data.answered_questions.length+1
+              }
+              responder_id=data.id
+              fetch("api/get_question/"+num_questions,{})
+              .then(function(res){ return res.json() })
+              .then(function(data) {
+                form_place.innerHTML='<div id="question_select"  class="row ">'+
+                                    '<h5>'+data.name+'</h5>'+
+                                    '</div>'
+                for(let i=0;i<data.answers.length;i++){
+                    document.getElementById('question_select').innerHTML+='<div><input type="checkbox" class="answer_select" value='+data.answers[i].id+'>'+data.answers[i].choice+'</div>'
+                              }
+
+              })
+            })
+                .catch(function(res){ console.log(res) })
+            }
+            if (count==1){
+              var answer_labels=[]
+              var answer_responders=[]
+              var answers= document.getElementsByClassName('answer_select')
+              var checked_answers=[]
+              for (let i=0;i<answers.length;i++){
+                if (answers[i].checked){
+                checked_answers.push(parseInt(answers[i].value))
+              }
+              }
+              fetch("{% url 'update_answered_questions'%} ",
+              {
+                headers: {
+                  "Accept" : "application/json",
+                  "Content-Type": "application/json",
+                  "X-CSRFToken": csrftoken
+                  },
+                method: "POST",
+                  body: JSON.stringify({
+                            responder_id: responder_id,
+                            question_id: num_questions,
+                            list_of_answers:checked_answers,
+                           })
+              }).then(function(res){ return res.json() })
+                .then(function(data) {
+
+                for(let i=0;i<data.answers.length;i++){
+                  answer_labels.push(data.answers[i].choice)
+                  answer_responders.push(data.answers[i].responders.length)
+                }
+                draw_chart(answer_labels,answer_responders)
+                })
+
+
+
+            }
+               count+=1
+               update_html()
+
+            })
+            prev.addEventListener('click',function(){
+              count-=1
+              update_html()
+            })
+            reset.addEventListener('click',function(){
+              count=0
+              reset.style.display='none'
+              next.disabled=false
+              update_html()
+            })
+
+            function update_html(){
+                         if (count==0){
+                           personal_nav.classList.add("active");
+                           results_nav.classList.remove("active");
+                           question_nav.classList.remove("active");
+
+                           prev.disabled=true
+                           next.innerHTML='التالي'
+                           form_place.innerHTML=page_1
+                         }else if (count==1) {
+                           personal_nav.classList.remove("active");
+                           question_nav.classList.add("active");
+                           prev.disabled=false
+                           next.innerHTML='عرض النتايج'
+                           form_place.innerHTML="Enter Your Information First"
+                         }else if (count==2) {
+                           question_nav.classList.remove("active");
+                           results_nav.classList.add("active");
+                           form_place.innerHTML='<div class="row" id="chart_container">'+
+                             '<canvas id="myChart" width="400" height="400"></canvas>'+
+                             '</div>'
+                           next.disabled=true
+                           prev.disabled=true
+                           reset.style.display='block'
+                         }
+                      }
+
+           update_html()
+          function draw_chart(labels,data){
+              const ctx = document.getElementById('myChart').getContext('2d');
+              const myChart = new Chart(ctx, {
+                  type: 'doughnut',
+                  data: {
+                      labels: labels,
+                      datasets: [{
+                          label: '# of Votes',
+                          data: data,
+                          backgroundColor: [
+                              'rgba(255, 99, 132, 1)',
+                              'rgba(54, 162, 235, 1)',
+                              'rgba(255, 206, 86, 1)',
+                          ],
+                          borderColor: [
+                              'rgba(255, 99, 132, 1)',
+                              'rgba(54, 162, 235, 1)',
+                              'rgba(255, 206, 86, 1)',
+                          ],
+                          borderWidth: 1
+                      }]
+                  },
+                  options: {
+                      scales: {
+                          y: {
+                              beginAtZero: true,
+                              display: false,
+                          }
+                      }
+                  }
+              });
+
+          }
+          </script>
+  </body>
+</html>

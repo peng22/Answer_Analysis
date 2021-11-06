@@ -1,0 +1,21 @@
+body
+{
+  background: red;
+  background-color: green;
+}
+#reset{
+  display: none
+}
+#form_place{
+  min-height: 400px;
+}
+#chart_container{
+  height:500px !important;
+  display: flex;
+}
+.active{
+  color: blue;
+}
+#nav_container{
+  width: 50% ;
+}
